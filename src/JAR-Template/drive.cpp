@@ -345,14 +345,6 @@ void Drive::set_coordinates(float X_position, float Y_position, float orientatio
     float current_R = get_RightTracker_position();
     float current_B = get_BackTracker_position();
     
-    // Debug: Print what we're setting
-    Brain.Screen.clearScreen();
-    Brain.Screen.setCursor(1, 1);
-    Brain.Screen.print("Setting coords: X=%.2f Y=%.2f", X_position, Y_position);
-    Brain.Screen.setCursor(2, 1);
-    Brain.Screen.print("Tracker after reset: L=%.2f R=%.2f B=%.2f", current_L, current_R, current_B);
-    Brain.Screen.setCursor(3, 1);
-    Brain.Screen.print("Setting stored to: 0.0, 0.0, 0.0");
     
     // Now set odometry with zeroed tracker positions
     // IMPORTANT: Use 0.0, not the current positions, to ensure stored positions start at 0
@@ -470,19 +462,10 @@ void Drive::holonomic_drive_to_point(float X_position, float Y_position, float a
 
 void Drive::holonomic_drive_to_point(float X_position, float Y_position, float angle, float drive_max_voltage, float heading_max_voltage, float drive_settle_error, float drive_settle_time, float drive_timeout, float drive_kp, float drive_ki, float drive_kd, float drive_starti, float heading_kp, float heading_ki, float heading_kd, float heading_starti){
   desired_heading = angle;
-  // Calculate target heading in VEX coordinate system
-  // VEX Inertial: 0°=North(+Y), 90°=East(+X), 180°=South(-Y), 270°=West(-X)
-  // atan2(y,x): 0°=+X(East), 90°=+Y(North), 180°=-X(West), 270°=-Y(South)
-  // Conversion: VEX_angle = 90° - atan2(y,x)
-  // Verification:
-  //   (10,0) East:  atan2(0,10)=0°  → 90°-0°  = 90° (East) ✓
-  //   (0,10) North: atan2(10,0)=90° → 90°-90° = 0°  (North) ✓
-  //   (1,√3) 30°:   atan2(√3,1)=60° → 90°-60° = 30° ✓
-  //   (-10,0) West: atan2(0,-10)=180° → 90°-180° = -90° = 270° (West) ✓
-  //   (0,-10) South: atan2(-10,0)=-90° → 90°-(-90°) = 180° (South) ✓
+  // calculate difference in target and initial position
   float dx = X_position - get_X_position();
   float dy = Y_position - get_Y_position();
-  float target_heading_deg = 90.0 - to_deg(atan2(dy, dx));  // Convert atan2 to VEX coordinates
+  float target_heading_deg = 90.0 - to_deg(atan2(dy, dx));  // convert coordinates to relative angle
   while(target_heading_deg < 0.0) target_heading_deg += 360.0;
   while(target_heading_deg >= 360.0) target_heading_deg -= 360.0;
   
@@ -492,27 +475,23 @@ void Drive::holonomic_drive_to_point(float X_position, float Y_position, float a
   PID drivePID(hypot(dx, dy), drive_kp, drive_ki, drive_kd, drive_starti, drive_settle_error, drive_settle_time, drive_timeout);
   PID turnPID(reduce_negative_180_to_180(desired_heading_deg - get_absolute_heading()), heading_kp, heading_ki, heading_kd, heading_starti);
   
-  int loop_count = 0;
-  // Continue loop if either drive or turn needs to run
-  // This allows turning in place when at the same position
   while(!(drivePID.is_settled()) || fabs(reduce_negative_180_to_180(desired_heading_deg - get_absolute_heading())) > 1.0){
     float drive_error = hypot(X_position-get_X_position(),Y_position-get_Y_position());
     
-    // Recalculate direction to target each iteration (for driving)
+    // error for driving
     dx = X_position - get_X_position();
     dy = Y_position - get_Y_position();
     
-    // Direction to target in VEX heading space (used only for driving direction)
-    target_heading_deg = 90.0 - to_deg(atan2(dy, dx));  // Convert atan2 to VEX coordinates
+    // direction to target (used only for driving direction)
+    target_heading_deg = 90.0 - to_deg(atan2(dy, dx));  // Convert xy to diff in angle of pos
     target_heading_deg = reduce_0_to_360(target_heading_deg);
     
     // Convert field-relative target direction to robot-relative movement
-    // VEX: 0°=North(+Y), 90°=East(+X)
-    // Robot-relative: forward is direction robot faces, strafe is perpendicular
+    // 0 deg =North(+Y), 90 deg=East(+X)...
     float robot_heading_deg = get_absolute_heading();
     float relative_angle_rad = to_rad(target_heading_deg - robot_heading_deg);
     
-    // Turn error uses desired_heading (angle parameter), not direction to target
+    // Turn error w desired_heading
     float turn_error = reduce_negative_180_to_180(desired_heading_deg - robot_heading_deg);
 
     float drive_output = drivePID.compute(drive_error);
@@ -521,45 +500,11 @@ void Drive::holonomic_drive_to_point(float X_position, float Y_position, float a
     drive_output = clamp(drive_output, -drive_max_voltage, drive_max_voltage);
     turn_output = clamp(turn_output, -heading_max_voltage, heading_max_voltage);
 
-    // Decompose drive_output into forward and strafe components (robot-relative)
-    // forward: movement in direction robot is facing (positive = forward)
-    // strafe: movement perpendicular to robot (positive = right)
+    // forward: positive = forward = +Y
+    // strafe: positive = right = +X
     float forward = drive_output * cos(relative_angle_rad);
     float strafe = drive_output * sin(relative_angle_rad);
 
-    // Print debug info every 10 loops (100ms)
-    if (loop_count % 10 == 0) {
-      Brain.Screen.clearScreen();
-      Brain.Screen.setCursor(1, 1);
-      Brain.Screen.print("Pos: X=%.2f Y=%.2f", get_X_position(), get_Y_position());
-      Brain.Screen.setCursor(2, 1);
-      Brain.Screen.print("Target: X=%.2f Y=%.2f", X_position, Y_position);
-      Brain.Screen.setCursor(3, 1);
-      Brain.Screen.print("dx=%.2f dy=%.2f", dx, dy);
-      Brain.Screen.setCursor(4, 1);
-      Brain.Screen.print("Robot H:%.1f Target H:%.1f", robot_heading_deg, target_heading_deg);
-      Brain.Screen.setCursor(5, 1);
-      Brain.Screen.print("Forward:%.2f Strafe:%.2f", forward, strafe);
-      Brain.Screen.setCursor(6, 1);
-      Brain.Screen.print("Drive:%.2f Turn:%.2f", drive_output, turn_output);
-      // Debug: Show raw tracker positions to verify odometry
-      if (drive_setup == HOLONOMIC_THREE_ROTATION) {
-        Brain.Screen.setCursor(7, 1);
-        Brain.Screen.print("L:%.2f R:%.2f B:%.2f", 
-          get_LeftTracker_position(), 
-          get_RightTracker_position(), 
-          get_BackTracker_position());
-        // Show raw rotation sensor values
-        Brain.Screen.setCursor(8, 1);
-        Brain.Screen.print("Raw L:%.0f R:%.0f B:%.0f deg", 
-          R_LeftTracker.position(deg), 
-          R_RightTracker.position(deg), 
-          R_BackTracker.position(deg));
-      }
-    }
-    loop_count++;
-
-    // Apply to motors (matching control_holonomic pattern: throttle=forward, strafe=strafe)
     // LF: forward + turn + strafe
     // RF: forward - turn - strafe
     // LB: forward + turn - strafe
@@ -601,7 +546,7 @@ void Drive::holonomic_turn_to_angle(float angle, float turn_max_voltage, float t
     // For holonomic drive, turn in place using all 4 motors:
     // LF and LB: +turn (left side forward)
     // RF and RB: -turn (right side backward)
-    // This creates pure rotation without translation
+    // pure rotation
     DriveLF.spin(fwd, output, volt);
     DriveLB.spin(fwd, output, volt);
     DriveRF.spin(fwd, -output, volt);
@@ -631,23 +576,24 @@ void Drive::control_holonomic(){
   float field_throttle = throttle;
   float field_strafe = strafe;
   
-  // Field-centric control: rotate joystick inputs by negative of robot heading
-  // Use odometry tracking wheels for heading (more accurate for field-centric)
+  // Field-centric control
   float heading_deg = 0;
   bool heading_valid = false;
 
-  if(Inertial.installed() && !Inertial.isCalibrating()){
+  if(Inertial.installed() && !Inertial.isCalibrating()){ //inertia prioritized over odometry heading
     heading_deg = Inertial.heading(degrees);
+    heading_valid = true;
+  } else if (odometry_heading_initialized){
+    heading_deg = get_odometry_heading();
     heading_valid = true;
   }
   
-  // Apply field-centric rotation if we have a valid heading
+  // Apply field-centric rotation if theres a valid heading
   if(heading_valid){
     // Convert to radians and negate for field-centric rotation
     float heading_rad = to_rad(-heading_deg);
     
     // Rotate throttle and strafe by the robot's heading
-    // This makes the robot move relative to the field, not the robot's orientation
     float cos_h = cos(heading_rad);
     float sin_h = sin(heading_rad);
     field_throttle = throttle * cos_h - strafe * sin_h;
@@ -660,7 +606,7 @@ void Drive::control_holonomic(){
   float lb_voltage = to_volt(field_throttle+turn-field_strafe);
   float rb_voltage = to_volt(field_throttle-turn+field_strafe);
   
-  // Always apply voltages to motors (even if zero) to keep them active and prevent blue/coast state
+  // Always apply voltages to motors (even if zero) to keep them active
   DriveLF.spin(fwd, lf_voltage, volt);
   DriveRF.spin(fwd, rf_voltage, volt);
   DriveLB.spin(fwd, lb_voltage, volt);

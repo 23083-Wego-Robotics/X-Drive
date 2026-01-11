@@ -70,11 +70,6 @@ void Odom::set_three_wheel_position(float X_position, float Y_position, float or
   this->Y_position = Y_position;
   this->orientation_deg = orientation_deg;
   
-  // Debug: Print what we're setting and verify
-  Brain.Screen.setCursor(4, 1);
-  Brain.Screen.print("Odom set: L=%.2f R=%.2f B=%.2f", LeftTracker_position, RightTracker_position, BackTracker_position);
-  Brain.Screen.setCursor(5, 1);
-  Brain.Screen.print("Odom stored: L=%.2f R=%.2f B=%.2f", this->LeftTracker_position, this->RightTracker_position, this->BackTracker_position);
 }
 
 void Odom::update_three_wheel_position(float LeftTracker_position, float RightTracker_position, float BackTracker_position, float orientation_deg){
@@ -147,18 +142,4 @@ void Odom::update_three_wheel_position(float LeftTracker_position, float RightTr
   debug_count++;
   total_updates++;
   
-  if (debug_count % 20 == 0) {
-    Brain.Screen.setCursor(9, 1);
-    Brain.Screen.print("Updates: %d | Ld=%.2f Rd=%.2f Fd=%.2f", total_updates, Left_delta, Right_delta, forward_delta);
-    Brain.Screen.setCursor(10, 1);
-    Brain.Screen.print("Old: L=%.2f R=%.2f B=%.2f", old_LeftTracker_position, old_RightTracker_position, old_BackTracker_position);
-    Brain.Screen.setCursor(11, 1);
-    Brain.Screen.print("New: L=%.2f R=%.2f B=%.2f", LeftTracker_position, RightTracker_position, BackTracker_position);
-    Brain.Screen.setCursor(12, 1);
-    Brain.Screen.print("Local: X=%.2f Y=%.2f", local_X_position, local_Y_position);
-    Brain.Screen.setCursor(13, 1);
-    Brain.Screen.print("Delta: X=%.2f Y=%.2f", X_position_delta, Y_position_delta);
-    Brain.Screen.setCursor(14, 1);
-    Brain.Screen.print("Pos: X=%.2f Y=%.2f", X_position, Y_position);
-  }
 }
