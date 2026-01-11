@@ -69,26 +69,10 @@ void Skills()
   // Set starting position for chassis odometry
   chassis.set_coordinates(0, 0, 0);
   
-  // Debug: Print raw rotation sensor values and converted positions
-  // This will help verify if the unit conversion is correct
-  Brain.Screen.clearScreen();
-  Brain.Screen.setCursor(1, 1);
-  Brain.Screen.print("Before movement:");
-  Brain.Screen.setCursor(2, 1);
-  Brain.Screen.print("Pos: X=%.2f Y=%.2f", chassis.get_X_position(), chassis.get_Y_position());
-  
-  // Use holonomic_turn_to_angle for turning in place with holonomic drive
   chassis.holonomic_drive_to_point(20, 20, 90);
+  wait(500, msec);
+  chassis.holonomic_turn_to_angle(0);
   
-  // Debug: Print final position
-  Brain.Screen.setCursor(3, 1);
-  Brain.Screen.print("After movement:");
-  Brain.Screen.setCursor(4, 1);
-  Brain.Screen.print("Pos: X=%.2f Y=%.2f", chassis.get_X_position(), chassis.get_Y_position());
-  Brain.Screen.setCursor(5, 1);
-  Brain.Screen.print("Expected: X=0.00 Y=10.00");
-  Brain.Screen.setCursor(6, 1);
-  Brain.Screen.print("If Y >> 10, units wrong!");
 
 }
 
